@@ -20,7 +20,7 @@ On your Linux machine:
 
     cd devox-software-test-assignment
     chmod +x ./buid/run.sh
-    ./buid/run.sh
+    ./run.sh
 
 3. Open other terminal window and try one of the curl commands from INSTRUCTIONS.md
 
@@ -33,5 +33,6 @@ Alternatively From VScode:
 5. VSCode should build the image from ./devcontainer/Dockerfile and run it in terminal
 6. After build succeeds just run
     chmod +x ./build/run.sh
-    ./build/run.sh
+    cd build
+    ./run.sh
 7. Now you can connect to server either in new vscode terminal Or from your local machine.
