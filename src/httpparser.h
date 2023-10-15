@@ -1,4 +1,9 @@
+#ifndef HTTP_PARSER
+#define HTTP_PARSER
+
 #include "common.hpp"
+#include "httpheader.hpp"
+#include "urimapping.h"
 
 namespace
 {
@@ -39,6 +44,8 @@ namespace
         case HttpMethod::PATCH:
             return "PATCH";
         }
+
+        return "NONE";
     }
 
     HttpMethod method_from_string(const std::string &method) noexcept
@@ -86,30 +93,22 @@ namespace
 
 namespace Devox
 {
+    using HttpMessage = std::vector<char>;
 
     class HttpParser
     {
-        using HttpMessage = std::vector<char>;
-
-        struct HttpRequest
-        {
-            std::string method;
-            std::string path;
-            std::string http_version;
-            std::string host;
-            std::string user_agent;
-            std::string accept;
-            uint32_t content_length;
-            std::string content_type;
-        };
-
         public:
-        HttpParser() {}
+        HttpParser() = default;
+        HttpParser(std::shared_ptr<UriMapping> mapping) : m_uriMapping(mapping)
+        {}
         ~HttpParser() {}
         HttpParser(const HttpParser& rhs) = delete;
 
         public:
-        bool ParseRequest(const char* request) 
+
+        const std::string& GetResponse() const { return m_responseString; }
+
+        bool ParseRequestAndGenerateResponse(const char* request)
         {
             std::istringstream req(request);
             std::string line;
@@ -139,8 +138,6 @@ namespace Devox
 
                 std::getline(lineStream, headerValue);
 
-                // std::cout << headerName << std::endl;
-
                 if (headerName == "Host")
                 {
                     m_request.host = headerValue;
@@ -163,55 +160,101 @@ namespace Devox
                 }
                 else
                 {
-                    m_body = headerName;
+                    m_request.body = headerName;
                 }
             }
 
-            // LogResponse();
+            // LogRequest(m_request);
+
+            HttpMethod method = method_from_string(m_request.method);
+
+            if(method == HttpMethod::POST)
+            {
+                m_uriMapping->PostEntry(m_request);
+                m_responseString = GenerateResponse(200, m_request);
+            }
+            else if (method == HttpMethod::GET)
+            {
+                HttpHeader result;
+                if (m_uriMapping->GetEntry(m_request.path, result))
+                {
+                    m_responseString = GenerateResponse(200, result);
+                }
+                else
+                {
+                    m_responseString = GenerateResponse(404, result);
+                }
+            }
+            else if (method == HttpMethod::DELETE)
+            {
+                if(m_uriMapping->DeleteEntry(m_request.path))
+                {
+                    m_responseString = GenerateResponse(200, HttpHeader());
+                }
+                else
+                {
+                    m_responseString = GenerateResponse(404, HttpHeader());
+                }
+            }
+            else
+            {
+                m_responseString = GenerateResponse(404, HttpHeader());
+            }
 
             return true;
         }
 
-        HttpMessage GenerateResponse()
-        {   
-            std::string responseBody;
+        private:
 
-            if (!m_request.content_length)
+        std::string GenerateResponse(size_t responseCode, const HttpHeader& requstBody)
+        {   
+            std::string responseString;
+
+            if (responseCode == 404)
             {
-                responseBody  = "HTTP/1.1 404 Not Found\r\n";
+                responseString  = "HTTP/1.1 404 Not Found\r\n";
             }
             else
             {
-                responseBody += "HTTP/1.1 200 OK\r\n";
-                responseBody += "Content-Type: " + m_request.content_type + "\r\n";
-                responseBody += "Content-Length: " 
-                    + std::to_string(m_request.content_length) + "\r\n";
-                responseBody += "\r\n";
-                responseBody += m_body + "\r\n";
+                responseString += "HTTP/1.1 200 OK\r\n";
+
+                if (!requstBody.content_type.empty())
+                    responseString += "Content-Type: " + requstBody.content_type + "\r\n";
+
+                if (requstBody.content_length != 0u)
+                    responseString += "Content-Length: "
+                        + std::to_string(requstBody.content_length) + "\r\n";
+
+                if (!requstBody.body.empty())
+                {
+                    responseString += "\r\n";
+                    responseString += requstBody.body + "\r\n";
+                }
             }
 
-            HttpMessage response;
-            // response.assign(ss.str().begin(), ss.str().end());
-            response.assign(responseBody.begin(), responseBody.end());
-            return response;
+            return std::move(responseString);
         }
 
         private:
-        void LogResponse()
+        void LogRequest(const HttpHeader& request)
         {
-            std::cout << "Method: " << m_request.method << std::endl;
-            std::cout << "Path: " << m_request.path << std::endl;
-            std::cout << "HTTP Version: " << m_request.http_version << std::endl;
-            std::cout << "Host: " << m_request.host << std::endl;
-            std::cout << "User-Agent: " << m_request.user_agent << std::endl;
-            std::cout << "Accept: " << m_request.accept << std::endl;
-            std::cout << "Content-Length: " << m_request.content_length << std::endl;
-            std::cout << "Content-Type: " << m_request.content_type << std::endl;
-            std::cout << "Request Body: " << m_body << std::endl;
+            std::cout << "Method: " << request.method << std::endl;
+            std::cout << "Path: " << request.path << std::endl;
+            std::cout << "HTTP Version: " << request.http_version << std::endl;
+            std::cout << "Host: " << request.host << std::endl;
+            std::cout << "User-Agent: " << request.user_agent << std::endl;
+            std::cout << "Accept: " << request.accept << std::endl;
+            std::cout << "Content-Length: " << request.content_length << std::endl;
+            std::cout << "Content-Type: " << request.content_type << std::endl;
+            std::cout << "Request Body: " << request.body << std::endl;
         }
 
         private:
-        HttpRequest m_request;
-        std::string m_body;
+        HttpHeader  m_request;
+        std::string m_responseString;
+
+        std::shared_ptr<UriMapping>    m_uriMapping;
     };
+//namespace
 }
+#endif

@@ -1,23 +1,23 @@
 #include "server.h"
+#include "connectionhandler.h"
+#include "urimapping.h"
 
 namespace Devox
 {
     
 Server::Server(uint16_t port)
 : m_acceptor(m_IOContext, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
+, m_uriMapping(std::make_shared<UriMapping>())
 {
-    std::cout << "[http-server] Server listening on port " << port << " ..." << std::endl;
+    std::cout << "[http-server] Server is listening on port " << port << " ..." << std::endl;
 
     WaitForNewConnection();
-    // m_thread = std::thread([this]() { m_IOContext.run(); });
     m_IOContext.run();
 }
 
 Server::~Server()
 {
     m_IOContext.stop();
-    
-    // if(m_thread.joinable()) m_thread.join();
 }
 
 void Server::WaitForNewConnection()
@@ -29,7 +29,7 @@ void Server::WaitForNewConnection()
             {
                 std::cout << "[http-server] new connection: " 
                           << socket.remote_endpoint() << std::endl;
-                auto connection = ConnectionHandler::Create(m_IOContext, std::move(socket));
+                auto connection = ConnectionHandler::Create(std::move(socket), m_uriMapping);
                 connection->Start();
             }
             else

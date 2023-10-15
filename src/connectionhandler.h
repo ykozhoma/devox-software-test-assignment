@@ -2,20 +2,23 @@
 #define CONNECTION_HANDLER
 
 #include "common.hpp"
-#include "safequeue.h"
 #include "httpparser.h"
+
+namespace Devox
+{
+
+class UriMapping;
 
 class ConnectionHandler : public std::enable_shared_from_this<ConnectionHandler>
 {
 public:
-    static std::shared_ptr<ConnectionHandler> Create(asio::io_context& ctx,
-                                                    asio::ip::tcp::socket socket)
+    static std::shared_ptr<ConnectionHandler> Create(asio::ip::tcp::socket socket, std::shared_ptr<UriMapping> mapping)
     {
-        return std::make_shared<ConnectionHandler>(ctx, std::move(socket));
+        return std::make_shared<ConnectionHandler>(std::move(socket), mapping);
     }
 
-    ConnectionHandler(asio::io_context& ctx, asio::ip::tcp::socket socket)
-    : m_ctx(ctx), m_socket(std::move(socket)), m_buffer(1024 * 20) { }
+    ConnectionHandler(asio::ip::tcp::socket socket, std::shared_ptr<UriMapping> mapping)
+    : m_socket(std::move(socket)), m_buffer(1024 * 20), m_httpParser(mapping) { }
 
     const asio::ip::tcp::socket& socket() const
     {
@@ -39,14 +42,12 @@ private:
         {
             LogClientMessage();
 
-            if (m_httpParser.ParseRequest(m_buffer.data()))
+            if (m_httpParser.ParseRequestAndGenerateResponse(m_buffer.data()))
             {
-                auto response = m_httpParser.GenerateResponse();
-
-                m_responseQueue.push_back(std::move(response));
+                m_response = m_httpParser.GetResponse();
 
                 m_socket.async_write_some(
-                    asio::buffer(response.data(), response.size()),
+                    asio::buffer(m_response.c_str(), m_response.length()),
                     std::bind(&ConnectionHandler::HandleWrite,
                     shared_from_this(),
                     std::placeholders::_1, std::placeholders::_2));
@@ -69,13 +70,10 @@ private:
         if (!ec)
         {
             std::cout << "[http-server] Server has sent response..." << std::endl;
-            auto response = m_responseQueue.pop_front();
+            std::cout << m_response << std::endl;
 
-            for (auto r : response)
-                std::cout << r;
-            
             m_socket.close();
-            std::cout << "\n[http-server] Connection done OK!" << "\n\n";
+            std::cout << "[http-server] Connection done OK!" << "\n\n";
         }
         else
         {
@@ -93,14 +91,13 @@ private:
     }
 
 private:
-    asio::io_context& m_ctx;
 	asio::ip::tcp::socket m_socket;
     std::vector<char> m_buffer;
 
-    Devox::safe_queue m_responseQueue;
-    Devox::HttpParser m_httpParser;
-
-    std::string message = "Hello From Server!";
+    HttpParser m_httpParser;
+    std::string m_response;
 };
+//namespace
+}
 
 #endif
