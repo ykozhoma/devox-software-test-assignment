@@ -13,9 +13,9 @@ You can run this project in two ways:
 - _Using your local machine_
 - _Using Docker and Visual Studio Code_
 
-_On your Linux or MacOS machine._
+_On your Ubuntu/Debian local machine._
 
-**Package requirments: modern c++ compiler, cmake, make.**
+**Package requirments: compiler with C++ 17 support, cmake, make.**
 
 1. Install libasio-dev
 
@@ -26,12 +26,6 @@ _On your Linux or MacOS machine._
     && sudo apt install -y --no-install-recommends libasio-dev
 
     ```
-
-    _For MacOS:_
-    ```
-    brew install asio
-    ```
-
 2. Run build and server binary
 ```
     cd devox-software-test-assignment
