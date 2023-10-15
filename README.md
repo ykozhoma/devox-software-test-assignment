@@ -56,3 +56,8 @@ _From VSCode:_
     ./run.sh
 ```
 7. Now you can connect to server either in new VS Code terminal Or from your local machine using `http://localhost:8000`.
+
+**Ways to further improve**
+- add JSON serialization and store requests in json format, rather then in regular structures;
+- add request validation in http parser;
+- add non-destructive updates;
